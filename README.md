@@ -103,17 +103,32 @@ This set of commands will uninstall Flux from the cluster, and then delete the n
 
 <br>
 
-## To use the K8s integration instead of Alloy:
+## To use the K8s integration (k8s-monitoring Helm chart) instead of Alloy:
 
-1) see [this file](./pre-provision/k8s-integration.sh) - note that the OTel endpoint username (i.e. stack ID) has to be exported base64 encoded.
-2) do that encoding and export step
-3) run the k8s-integration pre-provision script
+This path deploys the [grafana/k8s-monitoring](https://github.com/grafana/k8s-monitoring-helm) Helm chart (currently pinned to **v4.1.4**) via the `clusters/production` cluster.
+
+1) see [this file](./pre-provision/k8s-integration.sh) - note that BOTH the OTel endpoint username (i.e. stack ID) and the token have to be exported base64 encoded, as `ALLOY_CLOUD_OTLP_USERNAME_BASE64` and `ALLOY_CLOUD_OTLP_PASSSWORD_BASE64`.
+2) do that encoding and export step (use `echo -n VALUE | base64` for each)
+3) run the k8s-integration pre-provision script:
+```
+./pre-provision/k8s-integration.sh
+```
 4) run the flux bootstrap command again, but this time with the last line as:
 ```
     --path=clusters/production
 ```
 
-When Flux starts deploying things, you should see the K8s integration come up. The OTel services will also be configured correctly to talk to the "receiver" Alloy's service.
+When Flux starts deploying things, you should see the k8s-monitoring stack come up in the "collector" namespace (an `alloy-operator` plus `alloy-metrics`, `alloy-receiver`, and `alloy-singleton` Alloy instances, and `kube-state-metrics`). The OTel services will also be configured correctly to talk to the receiver Alloy's service (`k8s-monitoring-alloy-receiver.collector`).
+
+> Note: the `cluster.name` value in [infrastructure/collector-k8s-integration/k8s-integration.yaml](./infrastructure/collector-k8s-integration/k8s-integration.yaml) shows up as the `cluster` label in Grafana Cloud — change it to suit your environment.
+
+### Notes on the chart v2 → v4 upgrade
+If you are coming from the old v2.0.6 config, the v4 chart changed several things this repo now accounts for:
+- `destinations` is a **map keyed by name**, not a list (updated in the pre-provision script).
+- Alloy collectors are configured under a `collectors:` map and managed by the bundled `alloy-operator` (the old top-level `alloy-receiver` / `alloy-metrics` / `alloy-singleton` keys are gone).
+- Each **feature** (`clusterMetrics`, `clusterEvents`, `applicationObservability`) must be explicitly assigned to a collector via its `collector:` field.
+- `clusterMetrics` requires clustering enabled on `alloy-metrics` and a deployed `kube-state-metrics` under `telemetryServices` (v2 did this implicitly).
+- The OTLP receiver ports are exposed via `collectors.alloy-receiver.extraService`.
 
 
 

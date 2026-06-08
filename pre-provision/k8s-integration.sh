@@ -3,8 +3,8 @@
 : '
 This script requires that you have the following values exported:
 export ALLOY_CLOUD_OTLP_URL=
-export ALLOY_OTLP_USERNAME_BASE64=
-export ALLOY_OTLP_PASSSWORD_BASE64=
+export ALLOY_CLOUD_OTLP_USERNAME_BASE64=
+export ALLOY_CLOUD_OTLP_PASSSWORD_BASE64=
 '
 
 echo "
@@ -20,23 +20,25 @@ metadata:
   name: k8s-int-otlp-destinations
   namespace: collector
 data:
+  # In the k8s-monitoring chart v4, destinations is a MAP keyed by name
+  # (it was a list in v2). The map key (otlp-gateway) is the destination name.
   destinations-list: |-
     destinations:
-    - name: otlp-gateway
-      type: otlp
-      url: $ALLOY_CLOUD_OTLP_URL
-      protocol: http
-      auth:
-        type: basic
-        usernameKey: username
-        passwordKey: password
-      secret:
-        create: false
-        name: grafanacloud-otlphttp-secret
-        namespace: collector
-      metrics: {enabled: true}
-      logs: {enabled: true}
-      traces: {enabled: true}
+      otlp-gateway:
+        type: otlp
+        url: $ALLOY_CLOUD_OTLP_URL
+        protocol: http
+        auth:
+          type: basic
+          usernameKey: username
+          passwordKey: password
+        secret:
+          create: false
+          name: grafanacloud-otlphttp-secret
+          namespace: collector
+        metrics: {enabled: true}
+        logs: {enabled: true}
+        traces: {enabled: true}
 ---
 apiVersion: v1
 kind: Secret

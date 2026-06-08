@@ -25,7 +25,7 @@ spec:
   chart:
     spec:
       chart: k8s-monitoring
-      version: '2.0.6'
+      version: '4.1.4'
       sourceRef:
         kind: HelmRepository
         name: k8s-monitoring
@@ -33,6 +33,9 @@ spec:
 
   # https://fluxcd.io/flux/components/helm/helmreleases/#values-references
   # note that we can use both valuesFrom, and values:
+  # The ConfigMap below provides the `destinations:` map (created by
+  # ./pre-provision/k8s-integration.sh). In chart v4 `destinations` is a MAP
+  # keyed by name, not a list as it was in v2.
   valuesFrom:
     - kind: ConfigMap
       name: k8s-int-otlp-destinations
@@ -40,34 +43,63 @@ spec:
 
   values:
     cluster:
-      name: stadler-k8s-int
-    alloy-receiver:
+      # Shown as the `cluster` label in Grafana Cloud. Change to suit your env.
+      name: knapp-lab-cluster
+
+    # --- Collectors (Grafana Alloy instances) ---------------------------------
+    # In chart v4 the Alloy collectors are configured under `collectors:` and
+    # are managed by the bundled alloy-operator (they are no longer top-level
+    # `alloy-receiver` / `alloy-metrics` / `alloy-singleton` keys as in v2).
+    collectors:
+      # Receives OTLP data from the OpenTelemetry Demo apps.
+      alloy-receiver:
+        enabled: true
+        # Expose the OTLP ports as a Service named "k8s-monitoring-alloy-receiver"
+        # so the demo apps can reach it at k8s-monitoring-alloy-receiver.collector.
+        extraService:
+          enabled: true
+          name: alloy-receiver
+        alloy:
+          extraPorts:
+            - name: otlp-http
+              port: 4318
+              targetPort: 4318
+              protocol: TCP
+            - name: otlp-grpc
+              port: 4317
+              targetPort: 4317
+              protocol: TCP
+      # Scrapes cluster metrics. clusterMetrics requires clustering enabled here.
+      alloy-metrics:
+        enabled: true
+        alloy:
+          clustering:
+            enabled: true
+      # Runs single-replica workloads such as cluster events.
+      alloy-singleton:
+        enabled: true
+
+    # --- Features -------------------------------------------------------------
+    # In chart v4 each feature must be explicitly assigned to a collector.
+    clusterMetrics:
       enabled: true
-      controller:
-        type: deployment
-      alloy:
-        extraPorts:
-          - name: otlp-http
-            port: 4318
-            targetPort: 4318
-            protocol: TCP
-          - name: otlp-grpc
-            port: 4317
-            targetPort: 4317
-            protocol: TCP
+      collector: alloy-metrics
+    clusterEvents:
+      enabled: true
+      collector: alloy-singleton
     applicationObservability:
       enabled: true
+      collector: alloy-receiver
       receivers:
         otlp:
           grpc:
             enabled: true
           http:
             enabled: true
-    clusterEvents:
-      enabled: true
-    clusterMetrics:
-      enabled: true
-    alloy-metrics:
-      enabled: true
-    alloy-singleton:
-      enabled: true
+
+    # --- Telemetry services ---------------------------------------------------
+    # In chart v4, clusterMetrics requires kube-state-metrics to be deployed
+    # (or to point at an existing deployment). v2 deployed it implicitly.
+    telemetryServices:
+      kube-state-metrics:
+        deploy: true
