@@ -32,6 +32,6 @@ spec:
 
     # uncommment 4 lines below to expose the frontend proxy with an external IP address (tested only on GKE)
     components:
-      frontendProxy:
+      frontend-proxy:
         service:
           type: LoadBalancer
